@@ -40,8 +40,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Detect test files
+        id: test_files
+        run: |
+          if git ls-files | grep -Eq '(^|/)\w+\.(test|spec)\.(c|m)?[jt]sx?$'; then
+            echo "has_tests=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run tests
+        if: steps.test_files.outputs.has_tests == 'true'
         run: pnpm test
+
+      - name: Skip tests (no test files)
+        if: steps.test_files.outputs.has_tests != 'true'
+        run: echo "No test files found. Skipping test step."
 
   build_scan_push:
     name: Build, Scan, and Push Image

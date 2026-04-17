@@ -16,7 +16,7 @@ Trigger:
 
 Pipeline steps:
 
-1. Install dependencies and run tests (`pnpm test`)
+1. Install dependencies and run tests if test files exist
 2. Build Docker image with Buildx
 3. Push image to Docker Hub
 4. Scan pushed image by immutable digest with Docker Scout (fails only on `CRITICAL` vulnerabilities)

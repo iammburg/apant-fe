@@ -1,6 +1,5 @@
-'use client'
-
 import * as React from 'react'
+import { useQuery } from '@tanstack/react-query'
 
 import { NavMain } from '#/components/nav-main'
 // import { NavProjects } from '#/components/nav-projects'
@@ -13,8 +12,16 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '#/components/ui/sidebar'
-import { getAuthSession } from '#/features/auth/session'
-import { ClipboardList, Eye, ListChecks, ScanEye, Settings } from 'lucide-react'
+import { authSessionKey, getAuthSession } from '#/features/auth/session'
+import {
+  ClipboardList,
+  Crop,
+  Eye,
+  LayoutDashboard,
+  ListChecks,
+  ScanEye,
+  Settings,
+} from 'lucide-react'
 
 // This is sample data.
 const data = {
@@ -27,18 +34,22 @@ const data = {
   ],
   navMain: [
     {
+      title: 'Dashboard',
+      url: '/dashboard',
+      icon: <LayoutDashboard />,
+    },
+    {
       title: 'Scanner',
-      url: '#',
+      url: '',
       icon: <ScanEye />,
-      // isActive: true,
       items: [
         {
           title: 'Dynamic',
-          url: '#',
+          url: '/scanner/dynamic',
         },
         {
           title: 'Static',
-          url: '#',
+          url: '/scanner/static',
         },
       ],
     },
@@ -118,7 +129,13 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const session = getAuthSession()
+  const { data: session } = useQuery({
+    queryKey: authSessionKey,
+    queryFn: () => getAuthSession(),
+    initialData: getAuthSession(),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  })
   const authenticatedUser = session?.user
   const userName = authenticatedUser?.username ?? authenticatedUser?.email ?? 'User'
   const userEmail = authenticatedUser?.email ?? '—'

@@ -1,4 +1,3 @@
-import { AppSidebar } from '#/components/app-sidebar'
 import { ScanRankingChart } from '#/components/dashboard/charts/scan-ranking-chart'
 import { TopCategoriesChart } from '#/components/dashboard/charts/top-categories-chart'
 import { HistorySessionTable } from '#/components/dashboard/table/history-session-table'
@@ -8,37 +7,17 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from '#/components/ui/breadcrumb'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '#/components/ui/sidebar'
-import { refreshToken } from '#/features/auth/api/auth-api'
-import { getAuthSession, isAuthenticated, setAuthSession } from '#/features/auth/session'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '#/components/ui/card'
+import { ProtectedLayout } from '#/components/protected-layout'
+import { SidebarTrigger } from '#/components/ui/sidebar'
+import { requireAuth } from '#/features/auth/guard'
+import { authSessionKey, getAuthSession } from '#/features/auth/session'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute } from '@tanstack/react-router'
 import { ScanSearch, TimerReset, Users, Wrench } from 'lucide-react'
 
 export const Route = createFileRoute('/dashboard')({
-  beforeLoad: async () => {
-    if (isAuthenticated()) {
-      return
-    }
-
-    try {
-      const response = await refreshToken()
-      if (response.data?.user) {
-        setAuthSession({
-          tokenType: response.data.token_type,
-          expiresIn: response.data.expires_in,
-          user: response.data.user,
-        })
-        return
-      }
-    } catch {
-      // ignore and redirect below
-    }
-
-    const session = getAuthSession()
-    if (!session) {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: () => requireAuth(),
   component: Dashboard,
 })
 
@@ -70,79 +49,71 @@ const metrics = [
 ]
 
 function Dashboard() {
-  const session = getAuthSession()
+  const { data: session } = useQuery({
+    queryKey: authSessionKey,
+    queryFn: () => getAuthSession(),
+    initialData: getAuthSession(),
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  })
   const displayName =
     session?.user.username ?? session?.user.email ?? `User-${session?.user.id ?? 'Guest'}`
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="bg-background/95 sticky top-0 z-20 border-b backdrop-blur-sm">
-          <div className="flex h-14 items-center gap-2 px-4 md:px-6">
-            <SidebarTrigger className="-ml-1" />
-            <div className="flex w-full flex-row justify-between">
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>Dashboard</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>
-                      <b>Hi, Pentester {displayName}!</b>
-                    </BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-            {/* <div className="ml-auto flex items-center gap-2">
-              <Button size="sm" variant="outline">
-                <Funnel className="size-4" />
-                Filter
-              </Button>
-              <Button size="sm">
-                <Zap className="size-4" />
-                Quick Action
-              </Button>
-            </div> */}
+    <ProtectedLayout
+      header={
+        <>
+          <SidebarTrigger />
+          <div className="flex w-full flex-row justify-between">
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    <b>Hi, Pentester {displayName}!</b>
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
-        </header>
+        </>
+      }
+    >
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {metrics.map((item) => (
+          <Card key={item.label} className="border-primary border">
+            <CardHeader className="pb-0">
+              <div className="text-muted-foreground flex items-center justify-between">
+                <CardTitle className="text-xs tracking-wide uppercase">{item.label}</CardTitle>
+                {item.icon}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xl font-bold tracking-tight">{item.value}</p>
+              <CardDescription className="mt-1 text-xs">{item.delta}</CardDescription>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
 
-        <div className="space-y-6 p-4 md:p-6">
-          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {metrics.map((item) => (
-              <article
-                key={item.label}
-                className="bg-card text-card-foreground border-chart-1 border p-4"
-              >
-                <div className="text-muted-foreground mb-2 flex items-center justify-between">
-                  <p className="text-xs tracking-wide uppercase">{item.label}</p>
-                  {item.icon}
-                </div>
-                <p className="text-xl font-bold tracking-tight">{item.value}</p>
-                <p className="text-muted-foreground mt-1 text-xs">{item.delta}</p>
-              </article>
-            ))}
-          </section>
-
-          <section className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-            <div className="flex min-w-0 lg:flex-1">
-              <ScanRankingChart />
-            </div>
-            <div className="flex min-w-0 lg:flex-1">
-              <TopCategoriesChart />
-            </div>
-          </section>
-
-          <section className="flex">
-            <HistorySessionTable />
-          </section>
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+        <div className="flex min-w-0 lg:flex-1">
+          <ScanRankingChart />
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+        <div className="flex min-w-0 lg:flex-1">
+          <TopCategoriesChart />
+        </div>
+      </section>
+
+      <section className="flex">
+        <HistorySessionTable />
+      </section>
+    </ProtectedLayout>
   )
 }

@@ -1,4 +1,5 @@
-import React from 'react'
+import type { ReactNode } from 'react'
+import type { AgentLoopData } from '#/features/scanner/dynamic/types'
 import {
   Card,
   CardAction,
@@ -8,9 +9,24 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-export default function DynamicScannerProcess() {
+type DynamicScannerProcessProps = {
+  response?: AgentLoopData | null
+  isLoading?: boolean
+}
+
+export default function DynamicScannerProcess({ response, isLoading }: DynamicScannerProcessProps) {
+  const stepsToShow = response?.steps.slice(0, 10) ?? []
+  const hasMoreSteps = response ? response.steps.length > stepsToShow.length : false
+  const finalAnswerText = response ? toPlainText(response.final_answer) : ''
+
   return (
     <div>
       <Tabs defaultValue="overview" className="w-full">
@@ -44,6 +60,85 @@ export default function DynamicScannerProcess() {
           value="overview"
           className="border-primary flex flex-col flex-wrap gap-4 border p-4"
         >
+          {isLoading ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Scan in progress</CardTitle>
+                <CardDescription>Waiting for the agent loop response.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-muted-foreground text-sm">
+                The results will appear here once the scan completes.
+              </CardContent>
+            </Card>
+          ) : null}
+          {!isLoading && !response ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>No scan data yet</CardTitle>
+                <CardDescription>Submit a dynamic scan to see results.</CardDescription>
+              </CardHeader>
+            </Card>
+          ) : null}
+          {response ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Latest scan response</CardTitle>
+                <CardDescription>Session {response.session_id}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-6">
+                  <div>
+                    <p className="text-muted-foreground">Total steps</p>
+                    <p className="text-lg font-semibold">{response.total_steps}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Final answer</p>
+                    <p className="text-sm whitespace-pre-wrap">{finalAnswerText}</p>
+                  </div>
+                </div>
+                {stepsToShow.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">Recent steps</p>
+                    <Accordion type="single" collapsible>
+                      {stepsToShow.map((step) => (
+                        <AccordionItem
+                          key={`${response.session_id}-${step.step}`}
+                          value={`${step.step}`}
+                        >
+                          <AccordionTrigger>
+                            <div className="flex w-full flex-wrap items-center gap-2 text-sm">
+                              <span className="font-medium">Step {step.step}</span>
+                              <span className="text-muted-foreground">{step.tool}</span>
+                              {step.summary ? (
+                                <span className="text-muted-foreground">{step.summary}</span>
+                              ) : null}
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="space-y-3 text-sm">
+                              <div>
+                                <p className="text-muted-foreground font-medium">Params</p>
+                                <div className="space-y-1">{renderKeyValues(step.params)}</div>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground font-medium">Result</p>
+                                <div className="space-y-1">{renderKeyValues(step.result)}</div>
+                              </div>
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                    {hasMoreSteps ? (
+                      <p className="text-muted-foreground text-sm">
+                        Showing first {stepsToShow.length} of {response.steps.length} steps.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
           <div className="flex w-full flex-row flex-wrap gap-4">
             <Card className="flex-1">
               <CardHeader>
@@ -213,4 +308,49 @@ export default function DynamicScannerProcess() {
       </Tabs>
     </div>
   )
+}
+
+function toPlainText(value: string): string {
+  return value
+    .replace(/\*\*/g, '')
+    .replace(/`/g, '')
+    .replace(/^#+\s?/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function renderKeyValues(data: Record<string, unknown>): ReactNode {
+  return Object.entries(data).map(([key, value]) => (
+    <div key={key} className="flex flex-wrap items-start justify-between gap-2">
+      <span className="text-muted-foreground">{formatLabel(key)}</span>
+      <span className="text-right">{formatValue(value)}</span>
+    </div>
+  ))
+}
+
+function formatLabel(label: string): string {
+  return label.replace(/_/g, ' ')
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '-'
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  if (Array.isArray(value)) {
+    const preview = value
+      .slice(0, 2)
+      .map((item) => formatValue(item))
+      .join(', ')
+    return value.length > 2
+      ? `${preview}, +${value.length - 2} more`
+      : preview || `${value.length} items`
+  }
+
+  return 'Nested data'
 }
